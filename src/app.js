@@ -33,7 +33,7 @@ export function createApp() {
   app.use(
     cors({
       origin(origin, cb) {
-        // no Origin header = same-origin, curl, server-to-server (Next.js SSR) or Paytm callback
+        // no Origin header = same-origin, curl, server-to-server (Next.js SSR) or the PayU callback
         if (!origin || allowed.has(origin.replace(/\/+$/, ""))) return cb(null, true);
         cb(new ApiError(403, "Origin not allowed", { code: "CORS" }));
       },

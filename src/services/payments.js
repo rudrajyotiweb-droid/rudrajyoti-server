@@ -1,8 +1,8 @@
 /**
  * Payment lifecycle shared by puja bookings, chadhava bookings and store orders.
  *
- *  startPayment()   → creates a Payment attempt + Paytm txnToken (or a mock / COD record)
- *  syncPayment()    → asks Paytm for the authoritative status and applies it
+ *  startPayment()   → creates a Payment attempt + signed PayU checkout form (or a mock / COD record)
+ *  syncPayment()    → asks PayU (verify_payment) for the authoritative status and applies it
  *  applyResult()    → idempotent state transition; side effects run exactly once
  *  refundPayment()  → full/partial refunds with an atomic guard against over-refunding
  *
@@ -14,13 +14,16 @@ import { Booking, Chadhava, Coupon, CouponRedemption, InventoryLog, Order, Payme
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 import { notifyBookingStatus, notifyOrderStatus } from "./notify.js";
-import * as paytm from "./paytm.js";
+import * as payu from "./payu.js";
 
 const OPEN = ["Created", "Pending"];
 
 export const provider = () => env.PAYMENT_PROVIDER;
 
-const newOrderId = (code) => `${code}_${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+// PayU txnid: alphanumeric, max 25 chars (code is 12 → 12 + 8 + 4 = 24)
+const newOrderId = (code) => `${String(code).replace(/[^A-Za-z0-9]/g, "").slice(0, 12)}${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase().padEnd(4, "0")}`;
+
+const PRODUCT = { Puja: "Puja booking", Chadhava: "Chadhava offering", Store: "Store order" };
 
 /** Creates a payment attempt for a Booking or Order and returns what the frontend needs to open checkout. */
 export async function startPayment({ kind, refType, doc, user }) {
@@ -44,9 +47,18 @@ export async function startPayment({ kind, refType, doc, user }) {
   }
 
   try {
-    const txnToken = await paytm.initiateTransaction({ orderId: payment.orderId, amount, custId: user._id, mobile: user.phone, email: user.email || undefined, firstName: user.name || undefined });
+    const checkout = payu.buildCheckout({
+      txnid: payment.orderId,
+      amount,
+      productinfo: `${PRODUCT[kind] ?? "Order"} ${doc.code}`,
+      firstname: user.name || doc.customerName,
+      email: user.email || undefined,
+      phone: user.phone,
+      udf1: doc.code,
+      udf2: kind,
+    });
     await Payment.updateOne({ _id: payment._id }, { $set: { status: "Pending" } });
-    return { provider: "paytm", orderId: payment.orderId, txnToken, amount, mid: env.PAYTM_MID, scriptUrl: paytm.checkoutScriptUrl(), refCode: doc.code };
+    return { provider: "payu", orderId: payment.orderId, amount, refCode: doc.code, action: checkout.action, fields: checkout.fields };
   } catch (err) {
     await Payment.updateOne({ _id: payment._id }, { $set: { status: "Failed", resultMsg: err.message } });
     throw err;
@@ -76,8 +88,8 @@ export async function createCodPayment({ doc, user }) {
 export async function syncPayment(orderId) {
   const payment = await Payment.findOne({ orderId });
   if (!payment) throw ApiError.notFound("Payment not found");
-  if (!OPEN.includes(payment.status) || payment.provider !== "paytm") return payment;
-  const result = await paytm.orderStatus(orderId);
+  if (!OPEN.includes(payment.status) || payment.provider !== "payu") return payment;
+  const result = await payu.orderStatus(orderId);
   return applyResult(payment, result);
 }
 
@@ -206,10 +218,11 @@ export async function refundPayment(paymentId, { amount, reason = "", by = "Admi
   const reserved = await Payment.findOneAndUpdate({ _id: p._id, $expr: { $lte: [{ $add: ["$refundedAmount", amt] }, "$amount"] } }, { $inc: { refundedAmount: amt } }, { new: true });
   if (!reserved) throw ApiError.conflict("This payment has already been refunded");
 
-  const refId = `RF_${p.orderId}_${reserved.refunds.length + 1}`.slice(0, 50);
+  // unique per refund; PayU token id (alphanumeric)
+  const refId = `R${reserved.refunds.length + 1}${p.orderId}`.replace(/[^A-Za-z0-9]/g, "").slice(0, 30);
   let result = { status: "Success", refundId: refId, message: "Refunded" };
   try {
-    if (p.provider === "paytm") result = await paytm.refund({ orderId: p.orderId, txnId: p.txnId, refId, amount: amt });
+    if (p.provider === "payu") result = await payu.refund({ txnId: p.txnId, refId, amount: amt });
     else if (p.provider === "cod") result = { status: "Success", refundId: refId, message: "Manual refund (COD)" };
     if (result.status === "Failed") throw new ApiError(502, result.message ? `Refund failed: ${result.message}` : "Refund failed at the payment gateway", { code: "REFUND_FAILED" });
   } catch (err) {

@@ -6,7 +6,7 @@ import { requireUser } from "../middleware/auth.js";
 import { paymentLimiter } from "../middleware/security.js";
 import { validate } from "../middleware/validate.js";
 import { applyResult, syncPayment } from "../services/payments.js";
-import { verifyCallback } from "../services/paytm.js";
+import { verifyCallback } from "../services/payu.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 
@@ -31,26 +31,26 @@ async function view(p) {
 }
 
 /**
- * Paytm posts the result here (form-encoded) and the browser follows our redirect.
- * We never trust the posted status: checksum is verified for logging and the status API decides.
+ * PayU posts the result here (surl / furl, form-encoded) and the browser follows our redirect.
+ * We never trust the posted status: the reverse hash is checked for logging and verify_payment decides.
  */
-r.post("/paytm/callback", express.urlencoded({ extended: false, limit: "50kb" }), async (req, res) => {
-  const orderId = String(req.body?.ORDERID ?? "");
+r.post("/payu/callback", express.urlencoded({ extended: false, limit: "100kb" }), async (req, res) => {
+  const orderId = String(req.body?.txnid ?? "");
   const back = (status) => res.redirect(303, `${env.CLIENT_URL.replace(/\/+$/, "")}/payment/status/?orderId=${encodeURIComponent(orderId)}${status ? `&s=${status}` : ""}`);
   try {
     if (!zOrderId.safeParse(orderId).success) return back("failed");
-    if (!verifyCallback(req.body)) logger.warn({ orderId }, "Paytm callback checksum mismatch — falling back to status API");
+    if (!verifyCallback(req.body)) logger.warn({ orderId, status: req.body?.status }, "PayU callback hash mismatch — falling back to verify_payment API");
     const p = await syncPayment(orderId);
     return back((await view(p)).status);
   } catch (err) {
-    logger.error({ err: err.message, orderId }, "Paytm callback processing failed");
+    logger.error({ err: err.message, orderId }, "PayU callback processing failed");
     return back("pending");
   }
 });
 
 r.use(requireUser, paymentLimiter);
 
-/** Called by the frontend after CheckoutJS reports a result. Returns the authoritative status. */
+/** Asks the gateway for the authoritative status of the caller's payment. */
 r.post("/verify", validate({ body: z.object({ orderId: zOrderId }) }), async (req, res) => {
   const owned = await Payment.findOne({ orderId: req.valid.body.orderId, user: req.user._id });
   if (!owned) throw ApiError.notFound("Payment not found");
@@ -61,7 +61,7 @@ r.post("/verify", validate({ body: z.object({ orderId: zOrderId }) }), async (re
 r.get("/:orderId", validate({ params: z.object({ orderId: zOrderId }) }), async (req, res) => {
   const owned = await Payment.findOne({ orderId: req.valid.params.orderId, user: req.user._id });
   if (!owned) throw ApiError.notFound("Payment not found");
-  const p = ["Created", "Pending"].includes(owned.status) && owned.provider === "paytm" ? await syncPayment(owned.orderId).catch(() => owned) : owned;
+  const p = ["Created", "Pending"].includes(owned.status) && owned.provider === "payu" ? await syncPayment(owned.orderId).catch(() => owned) : owned;
   res.json({ data: await view(p) });
 });
 

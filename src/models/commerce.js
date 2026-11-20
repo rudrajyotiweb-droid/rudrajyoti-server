@@ -99,7 +99,7 @@ const paymentSchema = new Schema(
     user: { type: Schema.Types.ObjectId, ref: "User", index: true },
     customerName: String,
     amount: { type: Number, required: true, min: 0 },
-    provider: { type: String, enum: ["paytm", "mock", "cod"], required: true },
+    provider: { type: String, enum: ["payu", "paytm", "mock", "cod"], required: true }, // "paytm" kept for old records
     status: { type: String, enum: ["Created", "Pending", "Captured", "Failed", "Refunded", "Partially refunded"], default: "Created", index: true },
     txnId: String,
     bankTxnId: String,

@@ -12,6 +12,7 @@ import { ApiError } from "../../utils/ApiError.js";
 import { pageMeta, paging, slugify } from "../../utils/helpers.js";
 import { crudRouter } from "./crud.js";
 import { env } from "../../config/env.js";
+import { callbackUrl as payuCallbackUrl, paymentUrl as payuPaymentUrl } from "../../services/payu.js";
 
 const r = Router();
 const str = (max = 300) => z.string().trim().max(max);
@@ -187,7 +188,7 @@ r.put("/settings", allow(), validate({ body: siteSchema }), async (req, res) => 
 function integrationStatus() {
   const mask = (s) => (s ? `${s.slice(0, 4)}••••${s.slice(-2)}` : "");
   return {
-    payments: { provider: env.PAYMENT_PROVIDER, mid: mask(env.PAYTM_MID), website: env.PAYTM_WEBSITE, host: env.PAYTM_HOST, callbackUrl: `${env.API_PUBLIC_URL}/api/v1/payments/paytm/callback` },
+    payments: { provider: env.PAYMENT_PROVIDER, key: mask(env.PAYU_KEY), mode: env.PAYU_MODE, paymentUrl: payuPaymentUrl(), callbackUrl: payuCallbackUrl() },
     otp: { provider: env.OTP_PROVIDER, customerId: mask(env.MESSAGE_CENTRAL_CUSTOMER_ID), flowType: env.MESSAGE_CENTRAL_FLOW_TYPE, length: env.OTP_LENGTH },
   };
 }

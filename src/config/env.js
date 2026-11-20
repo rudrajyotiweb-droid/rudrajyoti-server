@@ -36,11 +36,12 @@ const schema = z
     MESSAGE_CENTRAL_COUNTRY_CODE: z.string().regex(/^\d{1,4}$/).default("91"),
     MESSAGE_CENTRAL_FLOW_TYPE: z.enum(["SMS", "WHATSAPP"]).default("SMS"),
 
-    PAYMENT_PROVIDER: z.enum(["paytm", "mock"]).default("mock"),
-    PAYTM_MID: z.string().optional().default(""),
-    PAYTM_MERCHANT_KEY: z.string().optional().default(""),
-    PAYTM_WEBSITE: z.string().default("WEBSTAGING"),
-    PAYTM_HOST: z.string().url().default("https://securegw-stage.paytm.in"),
+    PAYMENT_PROVIDER: z.enum(["payu", "mock"]).default("mock"),
+    PAYU_MODE: z.enum(["test", "production"]).default("test"),
+    PAYU_KEY: z.string().trim().optional().default(""),
+    PAYU_SALT: z.string().trim().optional().default(""),
+    // used when a devotee has no email on file (PayU requires one)
+    PAYU_DEFAULT_EMAIL: z.string().email().default("payments@rudrajyoti.in"),
 
     MAX_IMAGE_MB: z.coerce.number().positive().default(8),
     MAX_VIDEO_MB: z.coerce.number().positive().default(80),
@@ -57,8 +58,8 @@ const schema = z
     const prod = e.NODE_ENV === "production";
     if (e.OTP_PROVIDER === "messagecentral" && (!e.MESSAGE_CENTRAL_CUSTOMER_ID || !e.MESSAGE_CENTRAL_PASSWORD))
       ctx.addIssue({ code: "custom", path: ["MESSAGE_CENTRAL_CUSTOMER_ID"], message: "MESSAGE_CENTRAL_CUSTOMER_ID and MESSAGE_CENTRAL_PASSWORD are required when OTP_PROVIDER=messagecentral" });
-    if (e.PAYMENT_PROVIDER === "paytm" && (!e.PAYTM_MID || !e.PAYTM_MERCHANT_KEY))
-      ctx.addIssue({ code: "custom", path: ["PAYTM_MID"], message: "PAYTM_MID and PAYTM_MERCHANT_KEY are required when PAYMENT_PROVIDER=paytm" });
+    if (e.PAYMENT_PROVIDER === "payu" && (!e.PAYU_KEY || !e.PAYU_SALT))
+      ctx.addIssue({ code: "custom", path: ["PAYU_KEY"], message: "PAYU_KEY and PAYU_SALT are required when PAYMENT_PROVIDER=payu" });
     if (prod && e.OTP_PROVIDER === "console") ctx.addIssue({ code: "custom", path: ["OTP_PROVIDER"], message: "OTP_PROVIDER=console is not allowed in production" });
     if (prod && e.PAYMENT_PROVIDER === "mock") ctx.addIssue({ code: "custom", path: ["PAYMENT_PROVIDER"], message: "PAYMENT_PROVIDER=mock is not allowed in production" });
   });

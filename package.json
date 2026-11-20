@@ -12,6 +12,7 @@
     "start": "node src/server.js",
     "seed": "node src/seed/seed.js",
     "seed:fresh": "node src/seed/seed.js --fresh",
+    "seed:dates": "node src/scripts/refreshDemoDates.js",
     "create-admin": "node src/scripts/createAdmin.js",
     "check": "node --check src/server.js"
   },
@@ -27,7 +28,6 @@
     "mongoose": "^8.24.5",
     "multer": "^2.4.0",
     "otplib": "^13.5.0",
-    "paytmchecksum": "^1.5.1",
     "pino": "^10.4.0",
     "pino-http": "^11.0.0",
     "qrcode": "^1.5.4",

@@ -41,9 +41,6 @@ importers:
       otplib:
         specifier: ^13.5.0
         version: 13.5.0
-      paytmchecksum:
-        specifier: ^1.5.1
-        version: 1.5.1
       pino:
         specifier: ^10.4.0
         version: 10.4.0
@@ -555,9 +552,6 @@ packages:
 
   path-to-regexp@8.4.2:
     resolution: {integrity: sha512-qRcuIdP69NPm4qbACK+aDogI5CBDMi1jKe0ry5rSQJz8JVLsC7jV8XpiJjGRLLol3N+R5ihGYcrPLTno6pAdBA==}
-
-  paytmchecksum@1.5.1:
-    resolution: {integrity: sha512-RnimtEcnP3b7FiakPYkyO416UubaUflG5e2HlM2UYhryZ9wXwoRZ5k8XEK4wxaK+d7qIzWDMFUo1LICgaU+J0A==}
 
   pino-abstract-transport@3.0.0:
     resolution: {integrity: sha512-wlfUczU+n7Hy/Ha5j9a/gZNy7We5+cXp8YL+X+PG8S0KXxw7n/JXA3c46Y0zQznIJ83URJiwy7Lh56WLokNuxg==}
@@ -1251,8 +1245,6 @@ snapshots:
   path-exists@4.0.0: {}
 
   path-to-regexp@8.4.2: {}
-
-  paytmchecksum@1.5.1: {}
 
   pino-abstract-transport@3.0.0:
     dependencies:
