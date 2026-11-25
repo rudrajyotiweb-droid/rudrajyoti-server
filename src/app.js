@@ -30,17 +30,20 @@ export function createApp() {
   app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" }, contentSecurityPolicy: false }));
 
   const allowed = new Set(env.corsOrigins);
-  app.use(
-    cors({
-      origin(origin, cb) {
-        // no Origin header = same-origin, curl, server-to-server (Next.js SSR) or the PayU callback
-        if (!origin || allowed.has(origin.replace(/\/+$/, ""))) return cb(null, true);
-        cb(new ApiError(403, "Origin not allowed", { code: "CORS" }));
-      },
-      credentials: false,
-      maxAge: 86400,
-    }),
-  );
+  const corsMw = cors({
+    origin(origin, cb) {
+      // no Origin header = same-origin, curl or server-to-server (Next.js SSR)
+      if (!origin || allowed.has(origin.replace(/\/+$/, ""))) return cb(null, true);
+      cb(new ApiError(403, "Origin not allowed", { code: "CORS" }));
+    },
+    credentials: false,
+    maxAge: 86400,
+  });
+  // PayU's return is a top-level form POST from PayU's page, so the browser sends PayU's (or a "null")
+  // Origin. CORS does not apply to page navigations; this route is protected by the PayU hash and the
+  // verify_payment API instead, so it skips the origin check.
+  const CORS_EXEMPT = new Set(["/api/v1/payments/payu/callback", "/api/v1/payments/payu/callback/"]);
+  app.use((req, res, next) => (CORS_EXEMPT.has(req.path) ? next() : corsMw(req, res, next)));
   app.use(compression());
 
   app.get("/health", (_req, res) => {

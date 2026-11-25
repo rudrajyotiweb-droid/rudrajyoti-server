@@ -75,10 +75,18 @@ if (!parsed.success) {
 
 const e = parsed.data;
 
+/** "https://site.in" → also "https://www.site.in" (and the reverse), so the site works on both. Not for localhost/IPs. */
+const withWww = (u) => {
+  const url = u.replace(/\/+$/, "");
+  const m = url.match(/^(https?:\/\/)(www\.)?([^/:]+)(:\d+)?$/i);
+  if (!m || !m[3].includes(".") || /^[\d.]+$/.test(m[3])) return [url];
+  return [url, `${m[1]}${m[2] ? "" : "www."}${m[3]}${m[4] ?? ""}`];
+};
+
 export const env = {
   ...e,
   isProd: e.NODE_ENV === "production",
   isDev: e.NODE_ENV === "development",
   trustProxy: e.TRUST_PROXY ?? e.NODE_ENV === "production",
-  corsOrigins: [...new Set([e.CLIENT_URL, e.ADMIN_URL, ...e.CORS_EXTRA_ORIGINS].map((u) => u.replace(/\/+$/, "")))],
+  corsOrigins: [...new Set([...withWww(e.CLIENT_URL), ...withWww(e.ADMIN_URL), ...e.CORS_EXTRA_ORIGINS.map((u) => u.replace(/\/+$/, ""))])],
 };
